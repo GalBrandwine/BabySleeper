@@ -1,0 +1,4 @@
+
+For initial starting of the baby sleeper, please update this '.ino' with relevant inital information such as wifi ssid and pass.
+than burn this into the esp32
+
