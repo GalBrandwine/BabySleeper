@@ -1150,8 +1150,8 @@ DHT dht(DHTPIN, DHTTYPE);
 //**************************************************************************************
 //* MQ-2 definitions                                                                   *
 //**************************************************************************************
-//const int calibrationLed = 13;                      //when the calibration start , LED pin 13 will light up , off when finish calibrating
-const int MQ_PIN=16;                                //define which analog input channel you are going to use
+#define calibrationLed 13                      //when the calibration start , LED pin 13 will light up , off when finish calibrating
+#define MQ_PIN 32                                //define which analog input channel you are going to use (NOTE - CANT USE ADC2 PINS WHEN WIFI CONNECTED)
 int RL_VALUE=5;                                     //define the load resistance on the board, in kilo ohms
 float RO_CLEAN_AIR_FACTOR=9.83;                     //RO_CLEAR_AIR_FACTOR=(Sensor resistance in clean air)/RO,
                                                     //which is derived from the chart in datasheet
@@ -1236,7 +1236,8 @@ Remarks: The sensor and the load resistor forms a voltage divider. Given the vol
 ************************************************************************************/ 
 float MQResistanceCalculation(int raw_adc)
 {
-  return ( ((float)RL_VALUE*(1023-raw_adc)/raw_adc));
+  float res = ((float)RL_VALUE*(1023-raw_adc)/raw_adc);
+  return res;
 }
  
 /***************************** MQCalibration ****************************************
@@ -1252,6 +1253,11 @@ float MQCalibration(int mq_pin)
   int i;
   float val=0;
 
+  int analogSensor = analogRead(mq_pin);
+
+  Serial.print("MQCalibration: ");
+  Serial.println(analogSensor);
+  
   for (i=0;i<CALIBARAION_SAMPLE_TIMES;i++) {            //take multiple samples
     val += MQResistanceCalculation(analogRead(mq_pin));
     delay(CALIBRATION_SAMPLE_INTERVAL);
@@ -1279,9 +1285,9 @@ float MQRead(int mq_pin)
     rs += MQResistanceCalculation(analogRead(mq_pin));
     delay(READ_SAMPLE_INTERVAL);
   }
- 
+  
   rs = rs/READ_SAMPLE_TIMES;
- 
+  
   return rs;  
 }
  
@@ -1319,6 +1325,7 @@ long  MQGetPercentage(float rs_ro_ratio, float *pcurve)
   return (pow(10,( ((log10(rs_ro_ratio)-pcurve[1])/pcurve[2]) + pcurve[0])));
 }
 
+
 String readDHTHumidity() {
   float h = dht.readHumidity();
   //float h = bme.readHumidity();
@@ -1334,10 +1341,6 @@ String readDHTHumidity() {
 
 String readMq2() {
   
-  //int analogSensor = analogRead(smokeA0);
-
-  //Serial.print("MQ2 A0: ");
-  //Serial.println(analogSensor);
   long iPPM_LPG = 0;
   long iPPM_CO = 0;
   long iPPM_Smoke = 0;
@@ -1384,7 +1387,7 @@ String readDHTPressure() {
   }
 }
 
-// Replaces placeholder with LED state value
+// Replaces placeholders
 String processor(const String& var){
   Serial.println(var);
   if(var == "MQ2"){
@@ -1409,6 +1412,7 @@ String processor(const String& var){
   return String();
 }
 
+
 void setup(){
   // Serial port for debugging purposes
   Serial.begin(115200);
@@ -1419,12 +1423,15 @@ void setup(){
   //call begin to start sensor
   dht.begin();
   
-  //pinMode(smokeA0, INPUT); // MQ-2 analog pin
+  pinMode(MQ_PIN, INPUT); // MQ-2 analog pin
   pinMode(ledPin, OUTPUT); // simple led initiation
-
+  pinMode(calibrationLed,OUTPUT);
+  digitalWrite(calibrationLed,HIGH);
+  
   Ro = MQCalibration(MQ_PIN);                         //Calibrating the sensor. Please make sure the sensor is in clean air        
-  Serial.println("Done calibrating MQ-2, Ro: ");
-  Serial.println(Ro);
+  digitalWrite(calibrationLed,LOW);
+  
+  Serial.print("Done calibrating MQ-2, Ro: "); Serial.println(Ro);
   
   // Initialize SPIFFS
   if(!SPIFFS.begin()){
@@ -1458,12 +1465,13 @@ void setup(){
 
 
   
-// Simple example for changing GPIO via http request
+  // Simple example for changing GPIO via http request
   // Route to set GPIO to HIGH
   server.on("/on", HTTP_GET, [](AsyncWebServerRequest *request){
     digitalWrite(ledPin, HIGH);                                         // inside arduino sketch, turn off the pin   
     request->send(SPIFFS, "/index.html", String(), false, processor);   // then go to html, and update the graphics
   });
+
   
   // Route to set GPIO to LOW
   server.on("/off", HTTP_GET, [](AsyncWebServerRequest *request){
@@ -1482,10 +1490,16 @@ void setup(){
   server.on("/mq2", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send_P(200, "text/plain", readMq2().c_str());
   });
+
+  
   // Start server
   server.begin();
 }
  
 void loop(){
-  
+//  int analogSensor = analogRead(MQ_PIN);
+//
+//  Serial.print("Pin A0: ");
+//  Serial.println(analogSensor);
+//  delay(100);
 }
