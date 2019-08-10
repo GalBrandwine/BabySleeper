@@ -1117,80 +1117,49 @@
 *********/
 
 // Import required libraries
-//#ifdef ESP32
 #include <WiFi.h>
-//#include <esp_wifi.h>
 #include <ESPAsyncWebServer.h>
 #include <SPIFFS.h>
-  
-//#else
-//  #include <Arduino.h>
-//  #include <ESP8266WiFi.h>
-//  #include <Hash.h>
-//  #include <ESPAsyncTCP.h>
-//  #include <ESPAsyncWebServer.h>
-//  #include <FS.h>
-//#endif
-
 #include <Wire.h>
-#include <Adafruit_Sensor.h>
-//#include <Adafruit_BME280.h>
-
-
-
-
-
+#include <Adafruit_Sensor.h> // Not necessary
+#include <Adafruit_NeoPixel.h>
 #include "DHT.h"
 #define DHTPIN 4
-//our sensor is DHT22 type
+
+
+//**************************************************************************************
+//* Neopixle includes & instantiations                                                    *
+//**************************************************************************************
+# define Data_Pin 27
+# define NUM_OF_PIXLES 72
+// We define birghtness of NeoPixel LEDs
+#define BRIGHTNESS  20
+// When we setup the NeoPixel library, we tell it how many pixels, and which pin to use to send signals.
+// Note that for older NeoPixel strips you might need to change the third parameter--see the strandtest
+Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUM_OF_PIXLES, Data_Pin, NEO_GRB + NEO_KHZ800);
+
+//**************************************************************************************
+//* DHT22 includes & instantiations                                                    *
+//**************************************************************************************
 #define DHTTYPE DHT22
-//create an instance of DHT sensor
 DHT dht(DHTPIN, DHTTYPE);
 
 //**************************************************************************************
 //* MQ-2 definitions                                                                   *
 //**************************************************************************************
 #define calibrationLed 13                      //when the calibration start , LED pin 13 will light up , off when finish calibrating
-#define MQ_PIN 32                                //define which analog input channel you are going to use (NOTE - CANT USE ADC2 PINS WHEN WIFI CONNECTED)
-int RL_VALUE=5;                                     //define the load resistance on the board, in kilo ohms
-float RO_CLEAN_AIR_FACTOR=9.83;                     //RO_CLEAR_AIR_FACTOR=(Sensor resistance in clean air)/RO,
-                                                    //which is derived from the chart in datasheet
- 
-/***********************Software Related Macros************************************/
-int CALIBARAION_SAMPLE_TIMES=50;                    //define how many samples you are going to take in the calibration phase
-int CALIBRATION_SAMPLE_INTERVAL=500;                //define the time interal(in milisecond) between each samples in the
-                                                    //cablibration phase
-int READ_SAMPLE_INTERVAL=50;                        //define how many samples you are going to take in normal operation
-int READ_SAMPLE_TIMES=5;                            //define the time interal(in milisecond) between each samples in 
-                                                    //normal operation
- 
-/**********************Application Related Macros**********************************/
-#define         GAS_LPG             0   
-#define         GAS_CO              1   
-#define         GAS_SMOKE           2    
- 
-/*****************************Globals***********************************************/
-float           LPGCurve[3]  =  {2.3,0.21,-0.47};   //two points are taken from the curve. 
-                                                    //with these two points, a line is formed which is "approximately equivalent"
-                                                    //to the original curve. 
-                                                    //data format:{ x, y, slope}; point1: (lg200, 0.21), point2: (lg10000, -0.59) 
-float           COCurve[3]  =  {2.3,0.72,-0.34};    //two points are taken from the curve. 
-                                                    //with these two points, a line is formed which is "approximately equivalent" 
-                                                    //to the original curve.
-                                                    //data format:{ x, y, slope}; point1: (lg200, 0.72), point2: (lg10000,  0.15) 
-float           SmokeCurve[3] ={2.3,0.53,-0.44};    //two points are taken from the curve. 
-                                                    //with these two points, a line is formed which is "approximately equivalent" 
-                                                    //to the original curve.
-                                                    //data format:{ x, y, slope}; point1: (lg200, 0.53), point2: (lg10000,  -0.22)                                                     
-float           Ro           =  10;                 //Ro is initialized to 10 kilo ohms
+#define MQ_PIN 32                              //define which analog input channel you are going to use (NOTE - CANT USE ADC2 PINS WHEN WIFI CONNECTED)
 
 
 //**************************************************************************************
 //*                                 W I F I                                            *
 //* Replace with your network credentials                                              *
 //**************************************************************************************
+#define WIFITRYNUM 4
 const char* ssid = "gozal_2.4";
 const char* password = "asdffdsa";
+bool isConnected = false;
+
 
 //**************************************************************************************
 //* Simple led on/off for an example to how to controll pind using buttons in the web  *
@@ -1208,9 +1177,62 @@ AsyncWebServer server(80);
 //**************************************************************************************************
 String processor(const String& var);
 
+//void neoPixle_lightAll(String &effect, int time_length, int R, int G, int B){
+//  if (effect == "FADE_IN"){
+//    
+//  }
+//  else if (effect == "NORMAL"){
+//    
+//  }
+//  
+//}
+//void neoPixle_lightSpecific(int ledNum, int R, int G, int B){
+//  pixels.setPixelColor(ledNum, pixels.Color(R, G,B));
+//  pixels.show(); // This sends the updated pixel color to the hardware.
+//}
+//void neoPixle_KillAll(){
+//  pixels.clear(); // Set all pixel colors to 'off'
+//}
+//
+//void neoPixle_KillSpecific(int ledNum){
+//  
+//}
 
+bool wifiConnect(){
+  int tries=0;
+  WiFi.begin(ssid, password);
+  pixels.clear(); // Set all pixel colors to 'off'
+  for (int i=0; i < NUM_OF_PIXLES; i++){
+      pixels.setPixelColor(i, pixels.Color(255, 0,0));
+  }
+  pixels.setBrightness(5);
+  pixels.show();
+  
+  while (WiFi.status() != WL_CONNECTED and tries <= WIFITRYNUM) {
+    Serial.println("Connecting to WiFi..");
+    for(int brightness=6; brightness <= BRIGHTNESS; brightness++){
+      // Set NeoPixel configuration 
+      pixels.setBrightness(brightness);
+      pixels.show();
+      Serial.println(brightness);
+      delay(100);
+    }
+    for(int brightness=BRIGHTNESS; brightness > 0; brightness--){
+      // Set NeoPixel configuration 
+      pixels.setBrightness(brightness);
+      pixels.show();
+      Serial.println(brightness);
+      delay(100);
+    }
+    tries++;
+  }
+
+  // Print ESP32 Local IP Address
+  Serial.println(WiFi.localIP());
+  pixels.clear(); // Set all pixel colors to 'off'
+}
 String readDHTTemperature() {
-  //use the functions which are supplied by library.
+  //u se the functions which are supplied by library.
   // Read temperature as Celsius (the default)
   float t = dht.readTemperature();
 
@@ -1225,104 +1247,6 @@ String readDHTTemperature() {
     Serial.println(t);
     return String(t);
   }
-}
-
-/****************** MQResistanceCalculation ****************************************
-Input:   raw_adc - raw value read from adc, which represents the voltage
-Output:  the calculated sensor resistance
-Remarks: The sensor and the load resistor forms a voltage divider. Given the voltage
-         across the load resistor and its resistance, the resistance of the sensor
-         could be derived.
-************************************************************************************/ 
-float MQResistanceCalculation(int raw_adc)
-{
-  float res = ((float)RL_VALUE*(1023-raw_adc)/raw_adc);
-  return res;
-}
- 
-/***************************** MQCalibration ****************************************
-Input:   mq_pin - analog channel
-Output:  Ro of the sensor
-Remarks: This function assumes that the sensor is in clean air. It use  
-         MQResistanceCalculation to calculates the sensor resistance in clean air 
-         and then divides it with RO_CLEAN_AIR_FACTOR. RO_CLEAN_AIR_FACTOR is about 
-         10, which differs slightly between different sensors.
-************************************************************************************/ 
-float MQCalibration(int mq_pin)
-{
-  int i;
-  float val=0;
-
-  int analogSensor = analogRead(mq_pin);
-
-  Serial.print("MQCalibration: ");
-  Serial.println(analogSensor);
-  
-  for (i=0;i<CALIBARAION_SAMPLE_TIMES;i++) {            //take multiple samples
-    val += MQResistanceCalculation(analogRead(mq_pin));
-    delay(CALIBRATION_SAMPLE_INTERVAL);
-  }
-  val = val/CALIBARAION_SAMPLE_TIMES;                   //calculate the average value
-  val = val/RO_CLEAN_AIR_FACTOR;                        //divided by RO_CLEAN_AIR_FACTOR yields the Ro                                        
-  return val;                                                      //according to the chart in the datasheet 
-
-}
- 
-/*****************************  MQRead *********************************************
-Input:   mq_pin - analog channel
-Output:  Rs of the sensor
-Remarks: This function use MQResistanceCalculation to caculate the sensor resistenc (Rs).
-         The Rs changes as the sensor is in the different consentration of the target
-         gas. The sample times and the time interval between samples could be configured
-         by changing the definition of the macros.
-************************************************************************************/ 
-float MQRead(int mq_pin)
-{
-  int i;
-  float rs=0;
- 
-  for (i=0;i<READ_SAMPLE_TIMES;i++) {
-    rs += MQResistanceCalculation(analogRead(mq_pin));
-    delay(READ_SAMPLE_INTERVAL);
-  }
-  
-  rs = rs/READ_SAMPLE_TIMES;
-  
-  return rs;  
-}
- 
-/*****************************  MQGetGasPercentage **********************************
-Input:   rs_ro_ratio - Rs divided by Ro
-         gas_id      - target gas type
-Output:  ppm of the target gas
-Remarks: This function passes different curves to the MQGetPercentage function which 
-         calculates the ppm (parts per million) of the target gas.
-************************************************************************************/ 
-long MQGetGasPercentage(float rs_ro_ratio, int gas_id)
-{
-  if ( gas_id == GAS_LPG ) {
-     return MQGetPercentage(rs_ro_ratio,LPGCurve);
-  } else if ( gas_id == GAS_CO ) {
-     return MQGetPercentage(rs_ro_ratio,COCurve);
-  } else if ( gas_id == GAS_SMOKE ) {
-     return MQGetPercentage(rs_ro_ratio,SmokeCurve);
-  }    
- 
-  return 0;
-}
- 
-/*****************************  MQGetPercentage **********************************
-Input:   rs_ro_ratio - Rs divided by Ro
-         pcurve      - pointer to the curve of the target gas
-Output:  ppm of the target gas
-Remarks: By using the slope and a point of the line. The x(logarithmic value of ppm) 
-         of the line could be derived if y(rs_ro_ratio) is provided. As it is a 
-         logarithmic coordinate, power of 10 is used to convert the result to non-logarithmic 
-         value.
-************************************************************************************/ 
-long  MQGetPercentage(float rs_ro_ratio, float *pcurve)
-{
-  return (pow(10,( ((log10(rs_ro_ratio)-pcurve[1])/pcurve[2]) + pcurve[0])));
 }
 
 
@@ -1341,38 +1265,14 @@ String readDHTHumidity() {
 
 String readMq2() {
   
-  long iPPM_LPG = 0;
-  long iPPM_CO = 0;
-  long iPPM_Smoke = 0;
-  
-  iPPM_LPG = MQGetGasPercentage(MQRead(MQ_PIN)/Ro,GAS_LPG);
-  iPPM_CO = MQGetGasPercentage(MQRead(MQ_PIN)/Ro,GAS_CO);
-  iPPM_Smoke = MQGetGasPercentage(MQRead(MQ_PIN)/Ro,GAS_SMOKE);
-  
-  
+  int MQ2_analogRead = analogRead(MQ_PIN);
 
-   Serial.println("Concentration of gas ");
+  Serial.print("MQ2_analogRead : ");
+  Serial.println(MQ2_analogRead);
 
-   Serial.print("LPG: ");Serial.print(iPPM_LPG);Serial.println(" ppm");   
-   Serial.print("CO: ");Serial.print(iPPM_CO);Serial.println(" ppm");
-   Serial.print("Smoke: ");Serial.print(iPPM_Smoke);Serial.println(" ppm");
-   
-  // Checks if it has reached the threshold value
-//  if (analogSensor > sensorThres)
-//  {
-//    digitalWrite(redLed, HIGH);
-//    digitalWrite(greenLed, LOW);
-//    tone(buzzer, 1000, 200);
-//  }
-//  else
-//  {
-//    digitalWrite(redLed, LOW);
-//    digitalWrite(greenLed, HIGH);
-//    noTone(buzzer);
-//  }
-  
-  return String();
+  return String(MQ2_analogRead);  
 }
+
 
 String readDHTPressure() {
   //float p = bme.readPressure() / 100.0F;
@@ -1387,10 +1287,10 @@ String readDHTPressure() {
   }
 }
 
-// Replaces placeholders
+// Replaces all placeholders
 String processor(const String& var){
   Serial.println(var);
-  if(var == "MQ2"){
+  if(var == "GAS"){
     return readMq2();
   }
   else if(var == "TEMPERATURE"){
@@ -1419,19 +1319,18 @@ void setup(){
   Serial.println("BabySleeper Setup!");
   
 
- 
-  //call begin to start sensor
-  dht.begin();
+  pixels.begin(); // This initializes the NeoPixel library.
+  
+  dht.begin(); //call begin to start sensor
   
   pinMode(MQ_PIN, INPUT); // MQ-2 analog pin
   pinMode(ledPin, OUTPUT); // simple led initiation
   pinMode(calibrationLed,OUTPUT);
-  digitalWrite(calibrationLed,HIGH);
   
-  Ro = MQCalibration(MQ_PIN);                         //Calibrating the sensor. Please make sure the sensor is in clean air        
-  digitalWrite(calibrationLed,LOW);
+//  digitalWrite(calibrationLed,HIGH);
+//  do smoething in between led operations
+//  digitalWrite(calibrationLed,LOW);
   
-  Serial.print("Done calibrating MQ-2, Ro: "); Serial.println(Ro);
   
   // Initialize SPIFFS
   if(!SPIFFS.begin()){
@@ -1440,20 +1339,12 @@ void setup(){
   }
 
   // Connect to Wi-Fi
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    Serial.println("Connecting to WiFi..");
-  }
-
-  // Print ESP32 Local IP Address
-  Serial.println(WiFi.localIP());
-
+  isConnected = wifiConnect();
+  
   // Route for root / web page
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(SPIFFS, "/index.html", "text/html", false, processor);
   });
-  
   // Route to load style.css file
   server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(SPIFFS, "/style.css", "text/css");
@@ -1487,7 +1378,7 @@ void setup(){
   server.on("/humidity", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send_P(200, "text/plain", readDHTHumidity().c_str());
   });
-  server.on("/mq2", HTTP_GET, [](AsyncWebServerRequest *request){
+  server.on("/gas", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send_P(200, "text/plain", readMq2().c_str());
   });
 
@@ -1497,9 +1388,4 @@ void setup(){
 }
  
 void loop(){
-//  int analogSensor = analogRead(MQ_PIN);
-//
-//  Serial.print("Pin A0: ");
-//  Serial.println(analogSensor);
-//  delay(100);
 }

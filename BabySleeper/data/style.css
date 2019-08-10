@@ -55,11 +55,30 @@ h1 {
   font-size: 60px;
   color: #f39c12;
 }
+.gas-icon {
+  background-color: #ff0000;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  line-height: 36px;
+}
+.gas-text {
+  font-weight: 600;
+  padding-left: 15px;
+  font-size: 19px;
+  width: 160px;
+  text-align: left;
+}
+.gas {
+  font-weight: 300;
+  font-size: 60px;
+  color: #ff0000;
+}
 .superscript {
   font-size: 17px;
   font-weight: 600;
   position: absolute;
-  right: -20px;
+  right: -35px;
   top: 15px;
 }
 .data {
@@ -82,8 +101,24 @@ h1{
 }
 
 */
+.note {
+  background-color: lightgrey;
+  width: 400px;
+  border-radius: 25px;
+  border: 2px solid #73AD21;
+  vertical-align: middle;
+  position: relative;
+  display: inline-block;
+  padding: 20px;
+  
+}
 p{
-  font-size: 1.5rem;
+  padding: 16px 40px;
+  text-align: left
+  font-size: 10px;
+}
+P.a {
+  word-break: normal;
 }
 .button {
   display: inline-block;
