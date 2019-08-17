@@ -57,7 +57,7 @@ copies or substantial portions of the Software. -->
 		</div>
 
 		<div class="side-by-side humidity-text">Humidity</div>
-		<div class="side-by-side humidity" ><span id="humidity">%HUMIDITY%</span><span class="superscript">%</span></div>
+		<div class="side-by-side humidity" ><span id="humidity">%HUMIDITY%</span><span class="superscript">&#37;</span></div>
 	</div>
 </div>
 <!-- GAS -->
@@ -74,7 +74,7 @@ copies or substantial portions of the Software. -->
 	  </div>
       
 	  <div class="side-by-side gas-text">Gas</div>
-	  <div class="side-by-side gas" ><span id="gas"><placeholder="GAS"></span><span class="superscript">ppm</span></div>
+	  <div class="side-by-side gas" ><span id="gas"><placeholder="GAS">%GAS%</span><span class="superscript">ppm</span></div>
   </div>
 
 
@@ -87,19 +87,122 @@ copies or substantial portions of the Software. -->
     </div>
   </div>
 
-  <!-- Use the buttons for recording the remote commands -->
+  <!-- Use the buttons for recording the remote commands 
   <p><a href="/on"><button class="button">ON</button></a></p>
   <p><a href="/off"><button class="button button2">OFF</button></a></p>
+  -->
   
-  <!-- Tables are commented out because im not useing them now. -->
-  <!-- <div id="chart-temperature" class="container"></div> -->
-  <!-- <div id="chart-humidity" class="container"></div> -->
-  <!-- <div id="chart-pressure" class="container"></div>			NO PRESSURE SENSOR IN MY PROJECT -->
+   <!--
+   <div class="slidecontainer">
+  	 <p>Led collor picker:</p>
+  	 <input type="range" min="1" max="100" value="50" class="slider" id="myRange">
+  	 <p>Value: <span id="demo"></span></p>
+   </div>
+   -->
+  
+
+  <div class="data">
+    <div class="note">
+
+
+	    <div class="slidecontainer">
+	  	 	<div class="ledseting_text"><p>Brightness:</p></div>	
+	  	  	<input type="range" min="8" max="200" value="20" class="slider" id="brightnessRange">
+	    </div>
+		<div class="data">
+	  	   	<div class="side-by-side ledseting_text"><p>Led color: </p></div>
+		   	<div class="side-by-side ledseting_text"><input type="color" name="favcolor" value="#ff0000" id="hexRGB"></div>
+		   	<div class="side-by-side ledseting_text"><p>RGB value: <span id="hexvalue">%HEXVALUE%</span></p></div>
+		</div>
+		<div class="data" id="blueLightButtons">
+			<div class="side-by-side "><p><a href="/bluelightON"><button class="button button1">Bluelight ON</button></a></p></div>
+			<div class="side-by-side bluelight"><p><id="nightlightLabel"><placeholder="NIGHTLIGHT">%BLUELIGHT%</p></div>
+			<div class="side-by-side "><p><a href="/bluelightOFF"><button class="button button2">Bluelight OFF</button></a></p></div>
+		</div>
+
+
+	</div>
+  </div>
+  
+  
+  <div class="data">
+    <div class="wifi_cardentials">
+
+		<div class="data">
+			<div class="side-by-side">Wifi connected: </div>
+			<div class="side-by-side"><p><id="wifiStatus">%WIFISTATUS%</p></div>
+	   </div>
+		<form action="/wifiCardentials" method="get">
+			<div class="data">
+		  	 <div class="side-by-side ">WIFI name: </div>
+		  	 <div class="side-by-side "><input type="text" name="ssid"></div>
+			</div>
+			<div class="data">
+		  	 <div class="side-by-side ">WIFI password: </div>
+		  	 <div class="side-by-side "><input type="password" name="psw"></div>
+			</div>
+			 <br><br>
+			 <input type="submit" button class="button button2"></button>
+		</form>
+
+
+	</div>
+  </div>
+
 
 </body>
 
 
 <script>
+
+var ledCollorLabel = document.getElementById("hexvalue")	// label that holds the last rgb stored in esp32 memory.
+var hex = document.getElementById("hexRGB");
+var slider = document.getElementById("brightnessRange");
+
+/*
+
+slider.oninput = function() {
+  output.innerHTML = this.value;
+}
+*/
+slider.oninput = function() { // If slider changed - send serve request with current slider value.
+  //ledCollorLabel.innerHTML = this.value;
+  var xhttp = new XMLHttpRequest();
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) { // there's no return for this one. Yes I know it is not protocol -- 'leave me in your mother'..
+      //document.getElementById("temperature").innerHTML = this.responseText;
+    }
+  };
+  xhttp.open("GET", "/brightness"+"?brightnessValue="  + this.value, true);
+  xhttp.send();
+}
+
+/*
+Here im doing a nice trik - im storing the hex value from color picker in label, and in ESP32 preferences, so it is recoverable in the next restart.
+Than - when server is on, im setting the colorPicker to be the last picked value using the stored value in Preferences in ESP32 memory.
+*/
+hex.value = ledCollorLabel.innerHTML;
+var tempVal;
+hex.oninput = function() {  
+  tempVal = this.value;
+  ledCollorLabel.innerHTML =tempVal;
+
+}
+
+
+setInterval(function ( ) {
+  var xhttp = new XMLHttpRequest();
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      //document.getElementById("temperature").innerHTML = this.responseText;
+    }
+  };
+  xhttp.open("GET", "/hexFromFevcolor"+"?hexRGB="  + ledCollorLabel.innerHTML.slice(1), true);
+  xhttp.send();
+}, 5000 ) ;
+
+
+
 setInterval(function ( ) {
   var xhttp = new XMLHttpRequest();
   xhttp.onreadystatechange = function() {

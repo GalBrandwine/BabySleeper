@@ -5,7 +5,7 @@
 #include <Preferences.h>
 
 // Note: Namespace name is limited to 15 chars.  Same name must be used in ESP32-radio.
-#define NAME "ESP32Babysleeper"
+# define APPNAME "BabySleeper"
 // Adjust size of buffer to the longest expected string for nvsgetstr
 #define NVSBUFSIZE 150
 
@@ -15,10 +15,10 @@ Preferences preferences;
 void setup() {
   Serial.begin(115200);
   Serial.println();
-  /* Start a namespace NAME
+  /* Start a namespace APPNAME
   in Read-Write mode: set second parameter to false 
   Note: Namespace name is limited to 15 chars */
-  preferences.begin ( NAME, false ) ;                 // Open for read/write
+  preferences.begin ( APPNAME, false ) ;              // Open for read/write
   preferences.clear() ;                               // Remove all preferences under opened namespace
 
 
@@ -50,34 +50,16 @@ void setup() {
 //                              I R                                                        *
 //******************************************************************************************
 // after getting to know how to work with IR i can change is here to the right parameters..
-//preferences.putString ( "pin_ir",      "35                                     # GPIO Pin number for IR receiver VS1838B" ) ;
+// preferences.putString ( "pin_ir",      "35                                     # GPIO Pin number for IR receiver VS1838B" ) ;
 //  preferences.putString ( "ir_40BF",     "upvolume = 2" ) ;
 //  preferences.putString ( "ir_C03F",     "downvolume = 2" ) ;
 
 //******************************************************************************************
 //                              W I F I                                                    *
 //******************************************************************************************
-  preferences.putString ( "wifi_00",     "gozal_2.4/asdffdsa" ) ;
-  preferences.putString ( "wifi_01",     "SSID2/YYYYYY" ) ;
-  
-  /* if you want to remove all preferences under opened namespace uncomment it */
-  //preferences.clear();
-
-  /* if we want to remove the reset_times key uncomment it */
-  //preferences.remove("reset_times");
-
-  /* get value of key "reset_times", if key not exist return default value 0 in second argument
-  Note: Key name is limited to 15 chars too */
-  //unsigned int reset_times = preferences.getUInt("reset_times", 0);
-
-  /* we have just reset ESP then increase reset_times */
-  //reset_times++;
-
-  //Serial.printf("Number of restart times: %d\n", reset_times);
-
-  /* Store reset_times to the Preferences */
-  //preferences.putUInt("reset_times", reset_times);
-
+  preferences.putString ( "ssid",     "gozal_2.4" ) ;
+  preferences.putString ( "password", "asdffdsa" ) ;
+  preferences.putULong("hexRGB",0x00ff00);    // initial color
   /* Close the Preferences */
   preferences.end() ;
   delay ( 1000 ) ;
