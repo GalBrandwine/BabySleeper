@@ -55,10 +55,10 @@
 //* When we setup the NeoPixel library, we tell it how many pixels, and which pin to use to send signals.  *
 //* Note that for older NeoPixel strips you might need to change the third parameter--see the strandtest   *
 //**********************************************************************************************************
-//#include <Adafruit_NeoPixel.h>
-//# define Data_Pin 27
-//# define NUM_OF_PIXLES 22
 #include <NeoPixelBrightnessBus.h> // instead of NeoPixelBus.h
+
+#define SPIRAL 1
+int effectNum = 0;
 int BRIGHTNESS;
 String BLUELIGHT ="ON";
 double neoPixleColor = 0x66ffff;
@@ -66,6 +66,7 @@ String hexval;
 
 const uint16_t NUM_OF_PIXLES = 22; // this example assumes 3 pixels, making it smaller will cause a failure
 const uint8_t PixelPin = 27;  // make sure to set this to the correct pin, ignored for Esp8266
+
 
 #define FLLYDIMMED 0.95 // if 1.0 - than when "breathing" will complity turn off the NeoPixles
 #define colorSaturation 255 // saturation of color constants
@@ -115,7 +116,10 @@ Preferences preferences;
 //**************************************************************************************
 #define WIFITRYNUM 3
 bool isConnected = false;
-int lastNumOfIP = 0;    // When button is pushed, blink lastNumOfIP times, to indicate the device IP (it should be 192.168.1.X)
+int last_IPnum = 0;                 // When button is pushed, blink lastNumOfIP times, to indicate the device IP (it should be 192.168.1.X)
+const int IpButton = 17;
+const int rstButton = 5;
+bool interrupted = false;           // IF user pressedbutton to check what is the wifi ip, then interruped = true
 // Set Access Point IP
 IPAddress   apIP(10, 10, 10, 1);
 
@@ -123,6 +127,14 @@ IPAddress   apIP(10, 10, 10, 1);
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
 
+void IRAM_ATTR ipButtonInterrupt() {
+  Serial.println("interrupted!");
+  interrupted = true;
+}
+void IRAM_ATTR rstButtonInterrupt() {
+  Serial.println("interrupted! - reseting");
+  ESP.restart();
+}
 
 //* Red: 0xff0000
 //* Green: 0x00ff00
@@ -182,6 +194,63 @@ void neoPixleSolid(int hexValue,uint8_t brightness, int delayinms){
   }
 }
 
+void neoPixelSpiral(int hexValue, int SpiralSpeedInMS){
+  RGB tempRGB = colorConverter(hexValue);
+  RgbColor tempcolor(tempRGB.r, tempRGB.g, tempRGB.b);
+  RgbColor dimmed(0);
+  
+  uint8_t brightness = pixels.GetBrightness();
+  if (brightness != BRIGHTNESS){
+    brightness = BRIGHTNESS;
+  }
+
+  pixelsClear();
+  delay(100);
+
+  
+  pixels.SetBrightness(brightness);
+
+  Serial.println("Spiraling");
+  Serial.print("neoPixleBreath brightness: ");Serial.println(brightness);
+  Serial.print("Solid color.r: ");Serial.println(tempRGB.r);
+  Serial.print("Solid color.g: ");Serial.println(tempRGB.g);
+  Serial.print("Solid color.b: ");Serial.println(tempRGB.b);
+
+  int led = 0;
+  while(effectNum == SPIRAL and interrupted == false){
+    
+//    pixels.SetPixelColor(led, tempcolor);
+//    pixels.Show();
+    delay(SpiralSpeedInMS);
+    // Fade in
+    for(float progress=1; progress >= 0; progress = progress - 0.01){
+      // apply dimming
+      dimmed = tempcolor.LinearBlend(tempcolor, black, progress);
+      delay(5);
+      pixels.SetPixelColor(led, dimmed);
+      pixels.Show();
+    }
+
+    // Fade out
+    for(float progress=0.0; progress <= 1; progress = progress + 0.01){
+      // apply dimming
+      dimmed = tempcolor.LinearBlend(tempcolor, black, progress);
+      delay(5);
+      pixels.SetPixelColor(led, dimmed);
+      pixels.Show();
+    }
+
+    
+    led = ++led%NUM_OF_PIXLES;
+//    for (int led=0; led < NUM_OF_PIXLES; led++){
+//      // turn off the pixels
+//      pixels.SetPixelColor(led, tempcolor);
+//      pixels.Show();
+//      delay(SpiralSpeedInMS);
+//    }
+  }
+}
+
 
 void neoPixleBreath(int hexValue, int breathingSpeedInMS){
   
@@ -195,7 +264,8 @@ void neoPixleBreath(int hexValue, int breathingSpeedInMS){
     brightness = BRIGHTNESS;
   }
   pixels.SetBrightness(brightness);
-  
+
+  Serial.println("Breathing");
   Serial.print("neoPixleBreath brightness: ");Serial.println(brightness);
   Serial.print("Solid color.r: ");Serial.println(tempRGB.r);
   Serial.print("Solid color.g: ");Serial.println(tempRGB.g);
@@ -210,7 +280,7 @@ void neoPixleBreath(int hexValue, int breathingSpeedInMS){
   // ------------------------------------------------------------------------
 
   // Fade out
-  for(float progress=0.0; progress <= FLLYDIMMED; progress = progress + 0.01){
+  for(float progress=0.0; progress <= FLLYDIMMED and interrupted == false; progress = progress + 0.01){
     // apply dimming
     dimmed = tempcolor.LinearBlend(tempcolor, black, progress);
     delay(breathingSpeedInMS);
@@ -221,7 +291,7 @@ void neoPixleBreath(int hexValue, int breathingSpeedInMS){
   }
 
   // Fade in
-  for(float progress=FLLYDIMMED; progress >= 0; progress = progress - 0.01){
+  for(float progress=FLLYDIMMED; progress >= 0 and interrupted == false; progress = progress - 0.01){
     // apply dimming
     dimmed = tempcolor.LinearBlend(tempcolor, black, progress);
     delay(breathingSpeedInMS);
@@ -270,6 +340,7 @@ bool wifiConnect(){
 
   /* get value of key "ssid", if key not exist return default value "NOT_EXIST" in second argument
   Note: Key name is limited to 15 chars too */
+  preferences.begin(APPNAME, false);
   String ssidFrompreft = preferences.getString("ssid", "NOT_EXIST");
   String passwordFromPrefs = preferences.getString("password", "NOT_EXIST");
   
@@ -290,7 +361,7 @@ bool wifiConnect(){
     // Print ESP32 Local IP Address
     IPAddress broadCast = WiFi.localIP();
     Serial.println(broadCast);
-    int last_IPnum = broadCast[3];
+    last_IPnum = broadCast[3];
     int blue = 0x9955ff;
     
     neoPixleSolid( 0X00ff00,BRIGHTNESS, 3000); // solid green for 3 seconds
@@ -409,36 +480,39 @@ String processor(const String& var){
 
 
 void setup(){
-  
-  // Serial port for debugging purposes
+
+  char *ptr; // needed to convert pulled string represanting hexvalue into hexadecimal.
+ 
   Serial.begin(115200);
   Serial.println("BabySleeper Setup!");
   
 
   pixels.Begin(); // This initializes the NeoPixel library.
+  
   // get brightness from Preferences, if not-exist return: 20
   preferences.begin(APPNAME, false);
   BRIGHTNESS  = preferences.getInt("brightness",20);      // its more convinient to store string than actual value, because later on we need to send that value as a string to the server.
   hexval = preferences.getString("hexRGBstr","f0f0f0");   // Try to restore last color picked from web.
   preferences.end();
-  
+
+  // setting restored color to NeoPixle.
+  neoPixleColor = strtoul(hexval.c_str(), &ptr, 16); // convert value fromt string to long (rgb values are in hexadecimel)
   pixels.SetBrightness(BRIGHTNESS);
   
   dht.begin(); //call begin to start sensor
-  
+
+  // Setting pins and interrupts.
   pinMode(MQ_PIN, INPUT); // MQ-2 analog pin
-  
+  pinMode(IpButton, INPUT_PULLUP);
+  pinMode(rstButton, INPUT_PULLUP);
+  attachInterrupt(IpButton, ipButtonInterrupt, FALLING); // If pushed, device will blink the last IP number: 192.168.1.X
+  attachInterrupt(rstButton, rstButtonInterrupt, FALLING); // If pushed, device will restart
   
   // Initialize SPIFFS
   if(!SPIFFS.begin()){
     Serial.println("An Error has occurred while mounting SPIFFS");
     return;
   }
-
-  
-  // if you want to remove all preferences under opened namespace uncomment it.
-  preferences.begin(APPNAME, false);
-  neoPixleColor = preferences.getULong("hexRGB",0xff0000);    // try getting initial color, set led with red, if no initial color exist
   
   // Connect to Wi-Fi.
   isConnected = wifiConnect();
@@ -502,7 +576,6 @@ void setup(){
      value = p->value();
      const char* str = p->value().c_str();
      char *ptr;
-     long ret;
      neoPixleColor = strtoul(str, &ptr, 16); // convert value fromt string to long (rgb values are in hexadecimel)
     }
     
@@ -555,6 +628,18 @@ void setup(){
     request->send_P(200, "text/plain", readMq2().c_str());
   });
 
+
+  server.on("/ledeffect", HTTP_GET, [](AsyncWebServerRequest *request){
+     AsyncWebParameter* p = request->getParam(0);
+     effectNum = p->value().toInt();
+     Serial.print("EffectNum: ");Serial.println(effectNum);
+     // store brightness in preferences;
+//     preferences.begin(APPNAME, false);
+//     preferences.putInt("brightness",BRIGHTNESS);     // its more convinient to store string than actual value, because later on we need to send that value as a string to the server.
+//     preferences.end();
+      
+    request->send_P(200, "text/plain", "Effect changed");
+  });
   
   // Start server
   server.begin();
@@ -562,8 +647,29 @@ void setup(){
 
 
 void loop(){
+
+  if (interrupted == true){
+    int blue = 0x9955ff;
+    NeoPixleBlink(last_IPnum, blue); // blink in blue - the value of IP's last number - so user can enter the ip to browser: 192.168.1.X
+    pixelsClear(); // Set all pixel colors to 'off'
+    
+    interrupted = false;
+    
+  }
   if (isConnected == true){
-    neoPixleBreath(neoPixleColor, 100);  
+    
+    
+    // do something different depending on the range value:
+    switch (effectNum) {
+      case 0:    // your hand is on the sensor
+        //Serial.println("Breathing");
+        neoPixleBreath(neoPixleColor, 100); 
+        break;
+      case 1:    // your hand is close to the sensor
+        //Serial.println("Spiral");
+        neoPixelSpiral(neoPixleColor, 100); 
+        break;
+    }
   }
 
 }

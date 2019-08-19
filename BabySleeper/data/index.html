@@ -120,6 +120,8 @@ copies or substantial portions of the Software. -->
 			<div class="side-by-side "><p><a href="/bluelightOFF"><button class="button button2">Bluelight OFF</button></a></p></div>
 		</div>
 
+		<input type="checkbox" name="effect1" value="0" id="effect_breathing" onclick='handleClick(this);' checked> Breathing<br>
+		<input type="checkbox" name="effect2" value="1" id="effect_spiral" onclick='handleClick(this);'> Spiral <br>
 
 	</div>
   </div>
@@ -155,18 +157,35 @@ copies or substantial portions of the Software. -->
 
 <script>
 
+/* Theck & uncheck effects */
+var effect_breathing = document.getElementById("effect_breathing");
+var effect_spiral = document.getElementById("effect_spiral");
+
+function handleClick(cb) {
+	if (cb == effect_breathing){
+		effect_spiral.checked = false;
+	}
+	if (cb == effect_spiral){
+		effect_breathing.checked = false;
+	}
+
+  var xhttp = new XMLHttpRequest();
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) { // there's no return for this one. Yes I know it is not protocol -- 'leave me in your mother'..
+      //document.getElementById("temperature").innerHTML = this.responseText;
+    }
+  };
+  xhttp.open("GET", "/ledeffect"+"?effectNum="  + cb.value, true);
+  xhttp.send();
+}
+
+/* color picker settings */
 var ledCollorLabel = document.getElementById("hexvalue")	// label that holds the last rgb stored in esp32 memory.
 var hex = document.getElementById("hexRGB");
 var slider = document.getElementById("brightnessRange");
 
-/*
 
-slider.oninput = function() {
-  output.innerHTML = this.value;
-}
-*/
 slider.oninput = function() { // If slider changed - send serve request with current slider value.
-  //ledCollorLabel.innerHTML = this.value;
   var xhttp = new XMLHttpRequest();
   xhttp.onreadystatechange = function() {
     if (this.readyState == 4 && this.status == 200) { // there's no return for this one. Yes I know it is not protocol -- 'leave me in your mother'..
